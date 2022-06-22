@@ -1,64 +1,60 @@
-## Process MaxQuant results
-devtools::install_github("bartongroup/proteusLabelFree")
-devtools::install_github("bartongroup/Proteus",
-build_opts= c("--no-resave-data", "--no-manual"), build_vignettes=FALSE)
+# maxQuantReport
+# mhe 22.06.2021
+
+# Parameters
+# -------------------------------------------------------
+evidenceFile <- choose.files(caption = "Choose evidence.txt file from MaxQuant output combined/txt/ folder")
+
+quantile_normalization = TRUE
+
+
+
+# --------------------------------------------------------
+
+
+# ## Critical dependency
+# devtools::install_github("bartongroup/proteusLabelFree")
+# devtools::install_github("bartongroup/Proteus",
+# build_opts= c("--no-resave-data", "--no-manual"), build_vignettes=FALSE)
 
 # load packages
 library(data.table)
 library(ggplot2)
 library(proteus)
+library(pheatmap)
 library(shiny)
 library(plotly)
-library(htmlwidgets)
 library(ggrepel)
 
-## Define inputs
-# evidence --> quantdata
-evidenceFile = "combined/txt/evidence.txt"
+## Processing
+# evidence.txt
+message(evidenceFile)
+message(dirname(evidenceFile))
+message(basename(evidenceFile))
+Sys.sleep(2)
+
+setwd(dirname(evidenceFile))
 ev = fread(evidenceFile)
 
 # metadata
-# example
-fread(system.file("extdata", "metadata.txt", package="proteusLabelFree"))
-# write template
+# write template file for user
 fwrite(data.table("experiment" = unique(ev$Experiment),
                   "measure" = rep("Intensity", length(unique(ev$Experiment))),
                   "sample" = unique(ev$Experiment),
                   "condition" = rep("FILL-IN", length(unique(ev$Experiment))),
                   "replicate" = rep("FILL-IN", length(unique(ev$Experiment)))),
-       file = "experimentalDesignMetadataFile_template.txt", sep = "\t")
+       file = "experimentalDesignMetadataFile_template.tsv", sep = "\t")
 
-metadataFile = "experimentalDesignMetadataFile.txt"
+message("experimentalDesignMetadataFile_template.tsv written to txt folder - fill in experimental metadata and save as experimentalDesignMetadataFile.tsv")
+
+# read filled template back from user
+metadataFile = choose.files(caption = "Choose the completed experimentalDesignMetadataFile.tsv file from MaxQuant output combined/txt/ folder")
 meta <- read.delim(metadataFile, header=TRUE, sep="\t")
-
-# Simplify Protein group identifiers
-simplification_table = fread("../210622_IEX-hlp-test_fragpipe_analysis/simplification_table.csv")
-simplifyCloneIDs = function(cloneIDs_to_simplify, simplification_table){
-  cloneIDs_simplified = copy(cloneIDs_to_simplify)
-  # subset simplification table to those truly present in cloneIDs_to_simplify
-  simplification_table[, present:=length(grep(gsub("\\|","\\\\|", cloneID_old), cloneIDs_to_simplify)), cloneID_old]
-  # print(paste("Replacement operations:",nrow(simplification_table[present>0])))
-  for (i in 1:nrow(simplification_table[present>0])){
-    cloneIDs_simplified = gsub(gsub("\\|","\\\\|", simplification_table[present>0]$cloneID_old[i]),
-                               simplification_table[present>0]$cloneID_new[i], cloneIDs_simplified)
-  }
-  return(data.table(cloneIDs_to_simplify, cloneIDs_simplified))
-}
-protein_groups_detected = unique(ev$Proteins)
-
-pgsimp = simplifyCloneIDs(protein_groups_detected, simplification_table)
-
-ev = merge(ev, pgsimp, by.x = "Proteins", by.y = "cloneIDs_to_simplify", all.y = F)
-ev$Proteins = NULL
-setnames(ev, "cloneIDs_simplified", "Proteins")
-ev[, `Leading proteins`:=Proteins]
-ev[, `Leading razor protein`:=Proteins]
-
-write.table(ev, file = "evidence_simplified.txt", sep = "\t", row.names = F, quote = F)
+meta
 
 # Plot IDs
+############
 nruns = length(unique(ev$`Raw file`))
-
 ev = merge(ev, meta, by.x = "Experiment", by.y = "experiment")
 
 ids.prot = ev[, length(unique(Proteins)), .(`Raw file`,sample,condition,replicate)]
@@ -67,134 +63,106 @@ ids.pep = ev[, length(unique(`Modified sequence`)), .(`Raw file`,sample,conditio
 ids = rbind(ids.prot[, level:="Protein.groups"],
             ids.pep[, level:="Modified.peptides"])
 
-ggplot(ids, aes(x = condition, y = V1, fill = condition)) + geom_bar(stat = "identity") + ggtitle("Identifications MaxQuant") +
+ggplot(ids, aes(x = paste(condition,"R", replicate), y = V1, fill = condition)) + geom_bar(stat = "identity") + ggtitle("Identifications MaxQuant") +
   theme(axis.text.x = element_text(angle = 90)) +
   geom_text(aes(label=V1), vjust = -0.2)+
   ylab("N") +
   facet_wrap(~level, scales = "free_y")
-ggsave("01_IDs_manual.pdf", width = (nruns/2)+8)
+ggsave("01_IDs_barplot.pdf", width = (nruns/2)+8)
 
+# Proteus in-depth analysis
+###########################
 
-# Proteus differential analysis
-################################
-evi = readEvidenceFile(file = "evidence_simplified.txt")
-
+# Plot heatmaps of peptide and protein intensities as summarized by Proteus
+evi = readEvidenceFile(file = evidenceFile)
 pepdat <- makePeptideTable(evi, meta)
-protdat <- makeProteinTable(pepdat)
+pepdat <- makePeptideTable(evi, meta)
 
-# Plot ID numbers
-plotCount(pepdat)
-ggsave("02_pepCount_proteus.pdf")
-
-plotCount(protdat)
-ggsave("02_protCount_proteus_min2pep.pdf")
-
-# Plot some example peptides/proteins
-pdf("06_protein_plots.pdf", width = nruns/3)
-for (i in 1:length(unique(ev$Proteins))){
-  pi = plotProtPeptides(pepdat = pepdat, protein = sample(pepdat$proteins, 1))
-  plot(pi)
+if(quantile_normalization == TRUE){
+  # backup
+  pepdat.raw = pepdat
+  
+  # Normalize using R/Limma quantile normalisation
+  pepdat.n_quantile = normalizeData(pepdat, norm.fun = limma::normalizeQuantiles)
+  protdat.n_quantile = makeProteinTable(pepdat.n_quantile)
+  
+  pdf("03_Normalization.pdf", width = 3+nruns/3)
+  boxplot(pepdat$tab, log="y", main = "Peptide intensities, Before normalization", las = 2)
+  boxplot(pepdat.n_quantile$tab, log="y", main = "Peptide intensities, After quantile normalization, Limma", las = 2)
+  dev.off()
+  
 }
+
+pepmatrix = pepdat$tab
+pepmatrix[is.na(pepmatrix)] = 0
+pepmatrix = pepmatrix[rowSums(pepmatrix)>0,]
+pepmatrix.log10 = log10(pepmatrix)
+pepmatrix.log10[is.infinite(pepmatrix.log10)] = 0
+
+# assemble annotation
+annotation_column = pepdat$metadata
+rownames(annotation_column) = annotation_column$experiment
+annotation_column$experiment = NULL
+annotation_column$sample = NULL
+annotation_column$measure = NULL
+
+pheatmap(pepmatrix.log10,
+         # scale = "row",
+         cluster_cols = T,
+         show_rownames = F,
+         ann_col = annotation_column,
+         main = "Log10 Peptide intensities",
+         color = viridis::inferno(30))
+
+dev.copy(pdf, file = "03a_Heatmap_peptides.pdf",
+         width = (nruns/2)+8,
+         height = (nruns/2)+8)
 dev.off()
 
 # Plot heatmap of protein intensities as summarized by Proteus
-library(pheatmap)
 protdat$tab[is.na(protdat$tab)] = 0
-protdat$tab[is.infinite(protdat$tab)] = 0
+protmatrix = protdat$tab[rowSums(protdat$tab)>0,]
+protmatrix.log10 = log10(protmatrix)
+protmatrix.log10[is.infinite(protmatrix.log10)] = 0
 
-matrix = protdat$tab[rowSums(protdat$tab)>0,]
+colnames(protmatrix.log10)
+rownames(annotation_column)
 
-pheatmap(matrix, scale = "row",
-         cluster_cols = F,
-         main = "Heatmap all runs rowscaled, MaxQuant",
+pheatmap(protmatrix.log10,
+         # scale = "row",
+         cluster_cols = T,
+         ann_col = annotation_column,
+         show_rownames = F,
+         ann_col = annotation_column,
+         main = "Log10 Protein intensities (top3sum)",
          color = viridis::inferno(30))
-dev.copy(pdf, file = "Heatmap_proteus.pdf", width = 18, height = 7)
+
+dev.copy(pdf, file = "03b_Heatmap_proteins_top3sum.pdf",
+         width = (nruns/2)+8,
+         height = (nruns/2)+8)
 dev.off()
 
-# write out protein intensity long format
-# Write out long table
-ev[, Intensity.prot:=sum(Intensity), .(Proteins, Experiment)]
-ev$replicate = NULL
-ev[, replicate:=gsub("iex-hlp-test-", "", unlist(strsplit(Experiment, split = "_"))[1]), Experiment]
-ev[, sample:=unlist(strsplit(Experiment, split = "_"))[2], Experiment]
 
-unique(ev$condition)
-unique(ev$sample)
-unique(ev$replicate)
+# Plot Pearson correlation matrices
+# Peptide level
+plotDistanceMatrix(pepdat) + geom_text(aes(x = Sample1, y = Sample2, label = round(value,2))) +
+  ggtitle("Peptide intensity correlation, Pearson") +
+  scale_fill_gradient(low = "white", high = "red")
+ggsave("05_Correlation_matrix_peptides.pdf", height = (nruns/3)+4, width = 4+(nruns/2.5))
 
-data_long = unique(ev[, .(Proteins, replicate, sample, Intensity.prot)])
-names(data_long) = c("protein_id", "replicate", "sample", "intensity")
-fwrite(data_long, file = "prot_long_intsum.csv")
+# Protein level
+plotDistanceMatrix(protdat) + geom_text(aes(x = Sample1, y = Sample2, label = round(value,2))) +
+  ggtitle("Protein intensity correlation, Pearson") +
+  scale_fill_gradient(low = "white", high = "red")
+ggsave("05_Correlation_matrix_proteins.pdf", height = (nruns/3)+4, width = 4+(nruns/2.5))
 
-data_long[, analysis := "MaxQuant"]
-data_long_fragpipe = fread("../210622_IEX-hlp-test_fragpipe_analysis/prot_long_intsum.csv")
-
-# Combine datasets
-data_long_fragpipe[, analysis:= "FragPipe"]
-data_long = rbind(data_long, data_long_fragpipe)
-data_long[, sample:=as.numeric(gsub("S","",sample)),sample]
-
-ggplot(data_long[, sum(intensity), .(sample, replicate,analysis)]) +
-  geom_bar(aes(x = sample, y = V1, fill = paste(analysis)),
-  stat = "identity", position = position_dodge2(preserve = "single", width = 0.5)) +
-  facet_wrap(~replicate) + ylab("Total Intensity")
-
-# Draw all lines across both replicates
-data_long[, commercial_ab:=FALSE]
-data_long[grep("_H$|_L$", protein_id), commercial_ab:=TRUE]
-
-data_long[, sample:=factor(sample, levels = seq(1,48))]
-
-p = ggplot(data_long) +
-  geom_line(aes(x = sample, y = intensity, color = protein_id,
-                color = protein_id, group = paste(protein_id,replicate,analysis))) +
-  geom_point(aes(x = sample, y = intensity, color = protein_id,
-                 color = protein_id)) +
-  facet_wrap(~analysis+replicate, scales = "free_y") +
-  theme(legend.position = "none",
-                                          axis.text.x = element_text(angle = 90)) +
-  ggtitle("IEX hlp test - All protein profiles")
-p
-ggplotly(p)
-
-p1 = ggplot(data_long[commercial_ab == TRUE]) +
-  geom_line(aes(x = sample, y = intensity, color = protein_id,
-                color = protein_id, group = paste(protein_id,replicate,analysis))) +
-  geom_point(aes(x = sample, y = intensity, color = protein_id,
-                 color = protein_id)) +
-  facet_wrap(~analysis+replicate, scales = "free_y") +
-  theme(legend.position = "bottom", axis.text.x = element_text(angle = 90)) +
-  ggtitle("IEX hlp test - Commercial AB protein profiles")
-p1
-ggplotly(p1)
-
-p2 = ggplot(data_long[commercial_ab == TRUE]) +
-  geom_line(aes(x = sample, y = intensity, color = protein_id,
-                color = protein_id, group = paste(protein_id,replicate,analysis))) +
-  geom_point(aes(x = sample, y = intensity, color = protein_id,
-                 color = protein_id)) +
-  facet_wrap(~replicate+analysis, scales = "free_y") +
-  theme(legend.position = "bottom", axis.text.x = element_text(angle = 90)) +
-  ggtitle("IEX hlp test - Commercial AB protein profiles")
-p2
-ggplotly(p2)
-
-mat = dcast(data_long, protein_id~analysis+replicate+sample, value.var = "intensity")
-
-mat.m = as.matrix(mat[, 2:ncol(mat)])
-row.names(mat.m) = mat$protein_id
-
-mat.m[is.na(mat.m)] = 0
-mat.m.log10 = log10(mat.m)
-mat.m.log10[is.infinite(mat.m.log10)] = 0
-
-pheatmap(mat.m.log10, show_rownames = F,
-        # scale = "row",
-         cluster_cols = F,
-         gaps_col = c(32,47, 82),
-         main = "Heatmap all runs, log10, FragPipe + MaxQuant",
-         color = viridis::inferno(30))
-dev.copy(pdf, file = "Heatmap_global_log10.pdf", width = 24, height = 14)
-dev.off()
+# PairsPanel with smoothed density of xy scatter
+for (condition in protdat$conditions){
+  matrix = protmatrix.log10[, protdat$conditions %in% condition]
+  matrix.completeobs = matrix[rowSums(matrix == 0) == 0,]
+  pairs.panels(matrix.completeobs, smoother = TRUE, ellipses = F, lm = TRUE)
+  dev.copy(pdf, paste0("06_correlation_pairpanel_", condition, ".pdf"), height = ncol(matrix)*4, width = ncol(matrix)*4)
+  dev.off()
+}
 
 
