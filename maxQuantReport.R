@@ -4,15 +4,11 @@
 # Parameters
 # -------------------------------------------------------
 evidenceFile <- choose.files(caption = "Choose evidence.txt file from MaxQuant output combined/txt/ folder")
-
 quantile_normalization = TRUE
-
-
 
 # --------------------------------------------------------
 
-
-# ## Critical dependency
+# Dependencies
 # devtools::install_github("bartongroup/proteusLabelFree")
 # devtools::install_github("bartongroup/Proteus",
 # build_opts= c("--no-resave-data", "--no-manual"), build_vignettes=FALSE)
@@ -22,9 +18,8 @@ library(data.table)
 library(ggplot2)
 library(proteus)
 library(pheatmap)
-library(shiny)
-library(plotly)
-library(ggrepel)
+library(rmarkdown)
+library(psych)
 
 ## Processing
 # evidence.txt
@@ -43,13 +38,13 @@ fwrite(data.table("experiment" = unique(ev$Experiment),
                   "sample" = unique(ev$Experiment),
                   "condition" = rep("FILL-IN", length(unique(ev$Experiment))),
                   "replicate" = rep("FILL-IN", length(unique(ev$Experiment)))),
-       file = "experimentalDesignMetadataFile_template.tsv", sep = "\t")
+       file = "experimentalDesignMetadataFile_template.csv")
 
-message("experimentalDesignMetadataFile_template.tsv written to txt folder - fill in experimental metadata and save as experimentalDesignMetadataFile.tsv")
+message("experimentalDesignMetadataFile_template.csv written to txt folder - fill in experimental metadata and save as experimentalDesignMetadataFile.csv")
 
 # read filled template back from user
 metadataFile = choose.files(caption = "Choose the completed experimentalDesignMetadataFile.tsv file from MaxQuant output combined/txt/ folder")
-meta <- read.delim(metadataFile, header=TRUE, sep="\t")
+meta <- fread(metadataFile, header=TRUE)
 meta
 
 # Plot IDs
@@ -69,13 +64,13 @@ ggplot(ids, aes(x = paste(condition,"R", replicate), y = V1, fill = condition)) 
   ylab("N") +
   facet_wrap(~level, scales = "free_y")
 ggsave("01_IDs_barplot.pdf", width = (nruns/2)+8)
+dev.off()
 
 # Proteus in-depth analysis
 ###########################
 
 # Plot heatmaps of peptide and protein intensities as summarized by Proteus
 evi = readEvidenceFile(file = evidenceFile)
-pepdat <- makePeptideTable(evi, meta)
 pepdat <- makePeptideTable(evi, meta)
 
 if(quantile_normalization == TRUE){
@@ -86,10 +81,12 @@ if(quantile_normalization == TRUE){
   pepdat.n_quantile = normalizeData(pepdat, norm.fun = limma::normalizeQuantiles)
   protdat.n_quantile = makeProteinTable(pepdat.n_quantile)
   
-  pdf("03_Normalization.pdf", width = 3+nruns/3)
+  # pdf("03_Normalization.pdf", width = 3+nruns/3)
   boxplot(pepdat$tab, log="y", main = "Peptide intensities, Before normalization", las = 2)
   boxplot(pepdat.n_quantile$tab, log="y", main = "Peptide intensities, After quantile normalization, Limma", las = 2)
-  dev.off()
+  # dev.off()
+  
+  pepdat = pepdat.n_quantile
   
 }
 
@@ -120,6 +117,9 @@ dev.copy(pdf, file = "03a_Heatmap_peptides.pdf",
 dev.off()
 
 # Plot heatmap of protein intensities as summarized by Proteus
+
+# make Protein Table
+protdat <- makeProteinTable(pepdat)
 protdat$tab[is.na(protdat$tab)] = 0
 protmatrix = protdat$tab[rowSums(protdat$tab)>0,]
 protmatrix.log10 = log10(protmatrix)
@@ -142,19 +142,20 @@ dev.copy(pdf, file = "03b_Heatmap_proteins_top3sum.pdf",
          height = (nruns/2)+8)
 dev.off()
 
-
 # Plot Pearson correlation matrices
 # Peptide level
 plotDistanceMatrix(pepdat) + geom_text(aes(x = Sample1, y = Sample2, label = round(value,2))) +
   ggtitle("Peptide intensity correlation, Pearson") +
   scale_fill_gradient(low = "white", high = "red")
 ggsave("05_Correlation_matrix_peptides.pdf", height = (nruns/3)+4, width = 4+(nruns/2.5))
+dev.off()
 
 # Protein level
 plotDistanceMatrix(protdat) + geom_text(aes(x = Sample1, y = Sample2, label = round(value,2))) +
   ggtitle("Protein intensity correlation, Pearson") +
   scale_fill_gradient(low = "white", high = "red")
 ggsave("05_Correlation_matrix_proteins.pdf", height = (nruns/3)+4, width = 4+(nruns/2.5))
+dev.off()
 
 # PairsPanel with smoothed density of xy scatter
 for (condition in protdat$conditions){
@@ -165,4 +166,10 @@ for (condition in protdat$conditions){
   dev.off()
 }
 
-
+# Mass errors
+ev2 = copy(ev)
+names(ev2) = gsub("\\]|\\[|\\)|\\(|\\/| ", "_", names(ev2))
+ggplot(ev2) + geom_density(aes(x = Uncalibrated_mass_error__ppm_, color = condition, group = Raw_file)) +
+  ggtitle("Uncalibrated mass errors ppm") +
+  theme_minimal()
+ggsave("MassErrors.pdf", height = 5, width = 5)
