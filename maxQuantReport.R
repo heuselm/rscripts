@@ -38,13 +38,13 @@ fwrite(data.table("experiment" = unique(ev$Experiment),
                   "sample" = unique(ev$Experiment),
                   "condition" = rep("FILL-IN", length(unique(ev$Experiment))),
                   "replicate" = rep("FILL-IN", length(unique(ev$Experiment)))),
-       file = "experimentalDesignMetadataFile_template.csv")
+       file = "StudyDesign_template.csv")
 
-message("experimentalDesignMetadataFile_template.csv written to txt folder - fill in experimental metadata and save as experimentalDesignMetadataFile.csv")
+message("StudyDesign_template.csv written to txt folder - fill in condition and replicate info and save as StudyDesign.csv")
 
 # read filled template back from user
-metadataFile = choose.files(caption = "Choose the completed experimentalDesignMetadataFile.tsv file from MaxQuant output combined/txt/ folder")
-meta <- fread(metadataFile, header=TRUE)
+# metadataFile = choose.files(caption = "Choose the completed experimentalDesignMetadataFile.tsv file from MaxQuant output combined/txt/ folder")
+meta <- fread("StudyDesign", header=TRUE)
 meta
 
 # Plot IDs
