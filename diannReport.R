@@ -29,6 +29,7 @@ path_to_dataset <- choose.files(caption = "Choose report.tsv file from DIANN out
 data = fread(path_to_dataset)
 
 setwd(dirname(path_to_dataset))
+dsname = basename(path_to_dataset)
 
 # write template file for user
 nruns = length(unique(data$File.Name))
@@ -57,7 +58,7 @@ ggplot(data[, length(unique(Precursor.Id)), .(Condition,Replicate,File.Name)],
     ggtitle("Precursors Identified") +
   theme_minimal() +
    theme(axis.text.x = element_text(angle = 45, hjust = 1)) 
-ggsave("IDs_Precursors.pdf", width = 5+(nruns/6), height = 6)
+ggsave(paste0("IDs_Precursors_",dsname,".pdf"), width = 5+(nruns/6), height = 6)
 
 ggplot(data[, length(unique(Protein.Group)), .(Condition,Replicate,File.Name)],
        aes(Condition, group = File.Name, y = V1)) +
@@ -68,7 +69,7 @@ ggplot(data[, length(unique(Protein.Group)), .(Condition,Replicate,File.Name)],
     ggtitle("Protein Groups Identified") +
   theme_minimal() +
    theme(axis.text.x = element_text(angle = 45, hjust = 1)) 
-ggsave("IDs_ProteinGroups.pdf", width = 12, height = 6)
+ggsave(paste0("IDs_ProteinGroups_",dsname,".pdf"), width = 12, height = 6)
 
 
 # IDs, mean and average
@@ -96,7 +97,7 @@ ggplot(IDs[level == "Protein.Groups"], aes(x = Condition, y = mean)) +
  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
  scale_fill_manual(values = escolors[1]) +
  ggtitle("Protein.Groups identified") 
-ggsave("IDs_ProteinGroups_mean_sd.pdf", width = 5+(nruns/12), height = 5)
+ggsave(paste0("IDs_ProteinGroups_mean_sd_",dsname,".pdf"), width = 5+(nruns/12), height = 5)
 
 ggplot(IDs[level == "Precursors"], aes(x = Condition, y = mean)) +
  geom_bar(stat = "identity") +
@@ -105,7 +106,7 @@ ggplot(IDs[level == "Precursors"], aes(x = Condition, y = mean)) +
   theme_minimal() +
  scale_fill_manual(values = escolors[1]) +
  ggtitle("Precursors identified")
-ggsave("IDs_Precursors_mean_sd.pdf", width = 5+(nruns/12), height = 5)
+ggsave(paste0("IDs_Precursors_mean_sd_", dsname, ".pdf"), width = 5+(nruns/12), height = 5)
 
 #'## Protein quantification Coefficients of Variation (CV analysis, PG.MaxLFQ)
 #+ ProteinQuantCV
@@ -127,7 +128,7 @@ ggplot(data, aes(x = PG.MaxLFQ.CV, y = ..count.., col = Condition)) +
   theme_minimal() +
   coord_cartesian(xlim = c(0,50)) +
   ggtitle("Protein quantification CV, density")
-ggsave("CVs_PG.MaxLFQ_n3_density_nscaled.pdf", height = 7, width = 7)
+ggsave(paste0("CVs_PG.MaxLFQ_n3_density_nscaled_", dsname,".pdf"), height = 7, width = 7)
 
 # Density plot, un-scaled y axis
 ggplot(data, aes(x = PG.MaxLFQ.CV, col = Condition)) +
@@ -136,7 +137,7 @@ ggplot(data, aes(x = PG.MaxLFQ.CV, col = Condition)) +
   theme_minimal() +
   coord_cartesian(xlim = c(0,50)) +
   ggtitle("Protein quantification CV, density")
-ggsave("CVs_PG.MaxLFQ_n3_density.pdf", height = 7, width = 7)
+ggsave(paste0("CVs_PG.MaxLFQ_n3_density_", dsname, ".pdf"), height = 7, width = 7)
 
 # Violin & Box-plot
 ggplot(data, aes(x = Condition, y = PG.MaxLFQ.CV)) + 
@@ -148,7 +149,7 @@ ggplot(data, aes(x = Condition, y = PG.MaxLFQ.CV)) +
   coord_cartesian(ylim = c(0,50)) +
   ggtitle("Protein MaxLFQ quantification CVs") +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
-ggsave("CVs_PG.MaxLFQ_n3_violin-box.pdf", height = 7, width = 14)
+ggsave(paste0("CVs_PG.MaxLFQ_n3_violin-box_", dsname, ".pdf"), height = 7, width = 14)
 
 #'## Intensity distributions
 #+ Intensity distributions
@@ -165,7 +166,7 @@ ggplot(data) + geom_violin(aes(x = Condition,
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
   ggtitle("Precursor.Quantity distribution RAW")
-ggsave("IntensityDistribution_Precursor.Quantity_Violin.pdf", height = 5, width = 5+(nruns/12))
+ggsave(paste0("IntensityDistribution_Precursor.Quantity_Violin_", dsname, ".pdf"), height = 5, width = 5+(nruns/12))
 
 # Precursor level intensities, Normalised intensities
 ggplot(data) + geom_violin(aes(x = Condition,
@@ -180,7 +181,7 @@ ggplot(data) + geom_violin(aes(x = Condition,
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
   ggtitle("Precursor.Normalised distribution")
-ggsave("IntensityDistribution_Precursor.Normalised_Violin.pdf", height = 5, width = 5+(nruns/12))
+ggsave(paste0("IntensityDistribution_Precursor.Normalised_Violin_", dsname, ".pdf"), height = 5, width = 5+(nruns/12))
 
 
 #'## IDs per Minute Gradient time
@@ -194,7 +195,7 @@ ggplot(idpm) + geom_bar(aes(x = RT_bin_minutes, y = V1, fill = Condition),
   xlab("Retention time bin") + ylab("Precursor identifications per minute") +
    ggtitle("Precursor identifications per Retention time bin, minute") + scale_fill_brewer(palette = "Set1") +
   theme_minimal()
-ggsave("IDs_PrecursorsPerMinute_bar.pdf", height = 5, width = 5+(nruns/12))
+ggsave(paste0("IDs_PrecursorsPerMinute_bar_", dsname, ".pdf"), height = 5, width = 5+(nruns/12))
 
 
 #'## Pairwise log-log correlation analysis
@@ -219,7 +220,7 @@ for (condition in unique(data$Condition)){
 }
 dev.off()
 
-pdf("ReplicateCorrelation_log10MaxLFQ_all.pdf")
+pdf(paste0("ReplicateCorrelation_log10MaxLFQ_all_", dsname, ".pdf"))
 for (condition in unique(data$Condition)){
   m.dt = dcast(unique(data[Condition == condition,
                            .(Protein.Group, PG.MaxLFQ, Condition, Replicate)]),
@@ -238,21 +239,14 @@ dev.off()
 
 # ID density / 'IDTic'
 # names(data)
-
 ggplot(data[!grepl("blank", Condition)]) +
-  geom_density(aes(x = RT, y = ..count.., color = Condition, group = Run), adjust = 0.2) +
+  geom_density(aes(x = RT, y = ..count.., color = Condition, group = File.Name), adjust = 0.2) +
   theme_minimal() + 
   ggtitle("Identification density by Condition")
-ggsave("Identification density by Condition.pdf", height = 5, width = 10)
+ggsave(paste0("Identification density by Condition_", dsname, ".pdf"), height = 5, width = 10)
 
 ggplot(data[!grepl("blank", Condition)]) +
-  geom_density(aes(x = RT, y = ..count.., color = loading_protocol, group = Run), adjust = 0.2) +
-  theme_minimal() + facet_wrap(~peptide_load_ng) +
-  ggtitle("Identification density by Condition")
-ggsave("Identification density by Condition split by peptide_load_ng.pdf", height = 5, width = 15)
-
-ggplot(data[!grepl("blank", Condition)]) +
-  geom_density(aes(x = RT, y = ..count.., color = Condition, group = Run), adjust = 0.2) +
+  geom_density(aes(x = RT, y = ..count.., color = Condition, group = File.Name), adjust = 0.2) +
   theme_minimal() + facet_wrap(~Condition) +
   ggtitle("Identification density by Condition")
-ggsave("Identification density by Condition Panels", height = 10, width = 12)
+ggsave(paste0("Identification density by Condition split by Condition", dsname, ".pdf"), height = 5, width = 15)
