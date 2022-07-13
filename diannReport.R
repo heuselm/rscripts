@@ -37,7 +37,7 @@ fwrite(data.table("File.Name" = unique(data$File.Name),
                   "Replicate" = rep("FILL", nruns)),
        file = "StudyDesign_template.csv")
 
-message('StudyDesign_template.csv written to result folder - fill in condition and replicate info and save as SudyDesign.csv')
+message('StudyDesign_template.csv written to result folder - fill in condition and replicate info and save as StudyDesign.csv')
 
 # read & merge StudyDesign
 study_design = fread('StudyDesign.csv')
@@ -235,3 +235,24 @@ for (condition in unique(data$Condition)){
   pairs.panels(m.log10[m.nobs == ncol(m),], smoother = TRUE, lm = TRUE)
 }
 dev.off()
+
+# ID density / 'IDTic'
+# names(data)
+
+ggplot(data[!grepl("blank", Condition)]) +
+  geom_density(aes(x = RT, y = ..count.., color = Condition, group = Run), adjust = 0.2) +
+  theme_minimal() + 
+  ggtitle("Identification density by Condition")
+ggsave("Identification density by Condition.pdf", height = 5, width = 10)
+
+ggplot(data[!grepl("blank", Condition)]) +
+  geom_density(aes(x = RT, y = ..count.., color = loading_protocol, group = Run), adjust = 0.2) +
+  theme_minimal() + facet_wrap(~peptide_load_ng) +
+  ggtitle("Identification density by Condition")
+ggsave("Identification density by Condition split by peptide_load_ng.pdf", height = 5, width = 15)
+
+ggplot(data[!grepl("blank", Condition)]) +
+  geom_density(aes(x = RT, y = ..count.., color = Condition, group = Run), adjust = 0.2) +
+  theme_minimal() + facet_wrap(~Condition) +
+  ggtitle("Identification density by Condition")
+ggsave("Identification density by Condition Panels", height = 10, width = 12)
