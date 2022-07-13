@@ -44,7 +44,7 @@ message("StudyDesign_template.csv written to txt folder - fill in condition and 
 
 # read filled template back from user
 # metadataFile = choose.files(caption = "Choose the completed experimentalDesignMetadataFile.tsv file from MaxQuant output combined/txt/ folder")
-meta <- fread("StudyDesign", header=TRUE)
+meta <- fread("StudyDesign.csv", header=TRUE)
 meta
 
 # Plot IDs
