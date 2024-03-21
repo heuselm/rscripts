@@ -19,8 +19,7 @@ library('plotly')
 library('corrplot')
 library('psych')
 
-# evosep color scheme
-escolors = c("#87B09A", "#FF671B", "#D1E0D7", "#222720", "#8A8A8D")
+# custom color scheme
 
 #'## Data import & annotation with study design (condition & replicate)
 #+ Data import
@@ -54,7 +53,7 @@ ggplot(data[, length(unique(Precursor.Id)), .(Condition,Replicate,File.Name)],
     geom_bar(stat = "identity", position = position_dodge2(preserve = 'single'),
              width = 0.8, col = "black") +
      ylab("N Precursors") +
-  # scale_fill_manual(values = escolors[c(3,1)]) +
+  # scale_fill_manual(values = customcolors[c(3,1)]) +
     ggtitle("Precursors Identified") +
   theme_minimal() +
    theme(axis.text.x = element_text(angle = 45, hjust = 1)) 
@@ -65,7 +64,7 @@ ggplot(data[, length(unique(Protein.Group)), .(Condition,Replicate,File.Name)],
     geom_bar(stat = "identity", position = position_dodge2(preserve = 'single'),
              width = 0.8, col = "black") +
      ylab("N Protein Groups") +
-  # scale_fill_manual(values = escolors[c(3,1)]) +
+  # scale_fill_manual(values = customcolors[c(3,1)]) +
     ggtitle("Protein Groups Identified") +
   theme_minimal() +
    theme(axis.text.x = element_text(angle = 45, hjust = 1)) 
@@ -95,7 +94,7 @@ ggplot(IDs[level == "Protein.Groups"], aes(x = Condition, y = mean)) +
  geom_errorbar(aes(ymin = mean-sd, ymax = mean+sd), width = 0.2) +
   theme_minimal() +
  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
- scale_fill_manual(values = escolors[1]) +
+ # scale_fill_manual(values = customcolors[1]) +
  ggtitle("Protein.Groups identified") 
 ggsave(paste0("IDs_ProteinGroups_mean_sd_",dsname,".pdf"), width = 5+(nruns/12), height = 5)
 
@@ -104,7 +103,7 @@ ggplot(IDs[level == "Precursors"], aes(x = Condition, y = mean)) +
  geom_errorbar(aes(ymin = mean-sd, ymax = mean+sd), width = 0.2) +
  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
   theme_minimal() +
- scale_fill_manual(values = escolors[1]) +
+ # scale_fill_manual(values = customcolors[1]) +
  ggtitle("Precursors identified")
 ggsave(paste0("IDs_Precursors_mean_sd_", dsname, ".pdf"), width = 5+(nruns/12), height = 5)
 
@@ -118,11 +117,14 @@ cv = function(x){sd(x)/mean(x)*100}
 data[, PG.MaxLFQ.nobs:=0]
 data[PG.MaxLFQ > 0, PG.MaxLFQ.nobs:=length(unique(Replicate)), .(Protein.Group, Condition)]
 
-# calculate CV for those with n >= 3 and plot CV dists, PG.Normalised
-data[PG.MaxLFQ.nobs >= 3, PG.MaxLFQ.CV:=cv(PG.MaxLFQ), .(Condition, Protein.Group)]
+# calculate CV for those with n >= 2 and plot CV dists, PG.Normalised
+data[PG.MaxLFQ.nobs >= 2, PG.MaxLFQ.CV:=cv(PG.MaxLFQ), .(Condition, Protein.Group)]
+
+data_protCv = unique(data[, .(Condition,Protein.Group,PG.MaxLFQ.CV)])
+
 
 # Density plot, count-scaled y axis
-ggplot(data, aes(x = PG.MaxLFQ.CV, y = ..count.., col = Condition)) +
+ggplot(data_protCv, aes(x = PG.MaxLFQ.CV, y = ..count.., col = Condition)) +
   geom_density(size = 1) +
   scale_color_brewer(palette = "Set1") + 
   theme_minimal() +
@@ -131,7 +133,7 @@ ggplot(data, aes(x = PG.MaxLFQ.CV, y = ..count.., col = Condition)) +
 ggsave(paste0("CVs_PG.MaxLFQ_n3_density_nscaled_", dsname,".pdf"), height = 7, width = 7)
 
 # Density plot, un-scaled y axis
-ggplot(data, aes(x = PG.MaxLFQ.CV, col = Condition)) +
+ggplot(data_protCv, aes(x = PG.MaxLFQ.CV, col = Condition)) +
   geom_density(size = 1) +
   scale_color_brewer(palette = "Set1") + 
   theme_minimal() +
@@ -140,7 +142,7 @@ ggplot(data, aes(x = PG.MaxLFQ.CV, col = Condition)) +
 ggsave(paste0("CVs_PG.MaxLFQ_n3_density_", dsname, ".pdf"), height = 7, width = 7)
 
 # Violin & Box-plot
-ggplot(data, aes(x = Condition, y = PG.MaxLFQ.CV)) + 
+ggplot(data_protCv, aes(x = Condition, y = PG.MaxLFQ.CV)) + 
   geom_violin(aes(fill = Condition)) +
   geom_boxplot(width = 0.1, outlier.shape = NA) +
   scale_color_brewer(palette = "Set1") + 
