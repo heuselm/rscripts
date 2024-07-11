@@ -24,8 +24,10 @@ library('psych')
 #'## Data import & annotation with study design (condition & replicate)
 #+ Data import
 # path_to_dataset = "S:\\Applications\\P003_500SPD\\03_Results\\220705_ShortCycleDiaMethodTest\\report_LibFree_2.tsv"
-path_to_dataset <- choose.files(caption = "Choose report.tsv file from DIANN output folder")
-data = fread(path_to_dataset)
+if (!exists("path_to_dataset")) {
+  path_to_dataset <- choose.files(caption = "Choose report.tsv file from DIANN output folder")
+  data = fread(path_to_dataset)
+} 
 
 setwd(dirname(path_to_dataset))
 dsname = basename(path_to_dataset)
